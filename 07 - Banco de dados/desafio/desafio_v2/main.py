@@ -1,15 +1,18 @@
-import sqlite3
 import textwrap
-
-from bd import criar_bd, criar_conexao
-from servico import ClienteServico
+from bd import criar_conexao, criar_bd
+from servico import BancoServico
 
 
 def menu():
     menu = """\n
     ================ MENU ================
-    [1]\tNovo cliente
-    [2]\tListar clientes
+    [1]\tDepositar
+    [2]\tSacar
+    [3]\tExtrato
+    [4]\tNovo cliente
+    [5]\tListar clientes
+    [6]\tNova conta
+    [7]\tListar contas
     [0]\tSair
     => """
     return input(textwrap.dedent(menu))
@@ -18,25 +21,40 @@ def menu():
 def main():
     conexao = criar_conexao()
     cursor = conexao.cursor()
-    cursor.row_factory = sqlite3.Row
+    criar_bd(cursor)
+    conexao.commit()
 
-    criar_bd(cursor=cursor)
-
-    servico = ClienteServico(cursor=cursor)
+    servico = BancoServico(cursor=cursor)
 
     while True:
-        match menu():
-            case "1":
-                servico.criar_cliente()
-                conexao.commit()
-            case "2":
-                servico.listar_clientes()
-            case "0":
-                break
-            case _:
-                print("\n@@@ Operação inválida, por favor selecione novamente a operação desejada. @@@")
+        opcao = menu()
 
+        if opcao == "1":
+            servico.depositar()
+            conexao.commit()
+        elif opcao == "2":
+            servico.sacar()
+            conexao.commit()
+        elif opcao == "3":
+            servico.emitir_extrato()
+        elif opcao == "4":
+            servico.criar_cliente()
+            conexao.commit()
+        elif opcao == "5":
+            servico.listar_clientes()
+        elif opcao == "6":
+            servico.criar_conta()
+            conexao.commit()
+        elif opcao == "7":
+            servico.listar_contas()
+        elif opcao == "0":
+            break
+        else:
+            print("\n@@@ Operação inválida, por favor selecione novamente a operação desejada. @@@")
+
+    cursor.close()
     conexao.close()
 
 
-main()
+if __name__ == "__main__":
+    main()
