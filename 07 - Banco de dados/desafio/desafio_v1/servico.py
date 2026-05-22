@@ -1,5 +1,4 @@
 from sqlite3 import Cursor
-
 from dominio import Cliente, PessoaFisica, PessoaJuridica
 
 
@@ -8,7 +7,24 @@ class ClienteServico:
         self.cursor = cursor
 
     def filtrar_cliente(self, documento: str) -> Cliente | None:
-        pass
+        # Busca no banco se o documento digitado já existe como CPF ou CNPJ
+        self.cursor.execute(
+            "SELECT email, telefone, status, tipo_cliente, nome, cpf, renda_mensal, nome_fantasia, cnpj, faturamento_anual FROM clientes WHERE cpf = ? OR cnpj = ?", 
+            (documento, documento)
+        )
+        row = self.cursor.fetchone()
+
+        if not row:
+            return None
+
+        # Desempacota os dados da linha retornada do banco
+        email, telefone, status, tipo_cliente, nome, cpf, renda_mensal, nome_fantasia, cnpj, faturamento_anual = row
+
+        # Instancia e retorna a classe de domínio correta com base no tipo salvo
+        if tipo_cliente == "PF":
+            return PessoaFisica(email=email, telefone=telefone, status=status, nome=nome, cpf=cpf, renda_mensal=renda_mensal)
+        else:
+            return PessoaJuridica(email=email, telefone=telefone, status=status, nome_fantasia=nome_fantasia, cnpj=cnpj, faturamento_anual=faturamento_anual)
 
     def _criar_cliente_pessoa_fisica(self, documento: str) -> PessoaFisica:
         nome = input("Informe o nome completo: ")
@@ -16,24 +32,40 @@ class ClienteServico:
         email = input("Informe seu email: ")
         telefone = input("Informe seu telefone: ")
 
-        return PessoaFisica(
+        cliente = PessoaFisica(
             nome=nome, cpf=documento, renda_mensal=renda_mensal, email=email, telefone=telefone, status="ativo"
         )
 
+        # Insere fisicamente o registro de Pessoa Física na tabela do banco de dados
+        self.cursor.execute("""
+            INSERT INTO clientes (email, telefone, status, tipo_cliente, nome, cpf, renda_mensal)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (cliente.email, cliente.telefone, cliente.status, "PF", cliente.nome, cliente.cpf, cliente.renda_mensal))
+
+        return cliente
+
     def _criar_cliente_pessoa_juridica(self, documento: str) -> PessoaJuridica:
         nome = input("Informe o nome fantasia: ")
-        faturamento_anual = float(input("Informe sua renda mensal: "))
+        faturamento_anual = float(input("Informe seu faturamento anual: "))
         email = input("Informe seu email: ")
         telefone = input("Informe seu telefone: ")
 
-        return PessoaJuridica(
+        cliente = PessoaJuridica(
             nome_fantasia=nome,
             cnpj=documento,
             faturamento_anual=faturamento_anual,
             email=email,
             telefone=telefone,
-            status="ativo",
+            status="active",
         )
+
+        # Insere fisicamente o registro de Pessoa Jurídica na tabela do banco de dados
+        self.cursor.execute("""
+            INSERT INTO clientes (email, telefone, status, tipo_cliente, nome_fantasia, cnpj, faturamento_anual)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (cliente.email, cliente.telefone, cliente.status, "PJ", cliente.nome_fantasia, cliente.cnpj, cliente.faturamento_anual))
+
+        return cliente
 
     def criar_cliente(self) -> None:
         documento = input("Informe o documento (CPF/CNPJ): ")
@@ -48,8 +80,23 @@ class ClienteServico:
         else:
             cliente = self._criar_cliente_pessoa_juridica(documento=documento)
 
-        print(cliente)
+        print("\n", cliente)
         print("\n=== Cliente criado com sucesso! ===")
 
     def listar_clientes(self) -> None:
-        print("Não existem clientes cadastrados!")
+        # Recupera as informações básicas de todos os clientes cadastrados no banco de dados
+        self.cursor.execute("SELECT tipo_cliente, nome, cpf, nome_fantasia, cnpj, email FROM clientes")
+        clientes = self.cursor.fetchall()
+
+        if not clientes:
+            print("\n@@@ Não existem clientes cadastrados! @@@")
+            return
+
+        print("\n================ LISTA DE CLIENTES ================")
+        for row in clientes:
+            tipo, nome, cpf, nome_fantasia, cnpj, email = row
+            if tipo == "PF":
+                print(f"Pessoa Física - Nome: {nome} | CPF: {cpf} | Email: {email}")
+            else:
+                print(f"Pessoa Jurídica - Nome Fantasia: {nome_fantasia} | CNPJ: {cnpj} | Email: {email}")
+        print("===================================================")
